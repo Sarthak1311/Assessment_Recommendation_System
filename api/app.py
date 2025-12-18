@@ -27,7 +27,7 @@ def get_recommendations(data: QueryRequest):
     response = recommend(query, use_llm=True)   # set True if you want LLM reranker
     return response
 
-# Run server
+# Run test server
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
