@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import uvicorn
 
 # Import recommendation pipeline
-from recommendation_engine import recommend
+from api.recommendation_engine import recommend
 
 app = FastAPI()
 
