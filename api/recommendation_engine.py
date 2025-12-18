@@ -35,46 +35,57 @@ def semantic_search(query, top_k=20):
 
 #  LLM Re-ranking 
 
+import os
+from google.ai.generativelanguage_v1beta import GenerativeServiceClient
+from google.ai.generativelanguage_v1beta.types import GenerateContentRequest, Content
+from google.api_core.client_options import ClientOptions
+
+# Read from environment (Render + local)
+API_KEY = os.getenv("GOOGLE_API_KEY")
+
+if API_KEY is None:
+    raise ValueError("GOOGLE_API_KEY environment variable not found. Add it in Render.")
+
+client = GenerativeServiceClient(
+    client_options=ClientOptions(api_key=API_KEY)
+)
+
 def rerank_with_llm(query, retrieved_items, top_k=10):
-    """
-    You can use OpenAI, Gemini, or any LLM.
-    I'll provide a clean OpenAI example below.
-    """
-
     try:
-        from openai import OpenAI
-        client = OpenAI()
-
-        context = "\n\n".join(
-            [f"[{i}] {item['name']} — {item['description']}" for i, item in enumerate(retrieved_items)]
-        )
+        context = ""
+        for i, item in enumerate(retrieved_items):
+            context += (
+                f"[{i}] Name: {item['Assessment Name']}\n"
+                f"Description: {item['Description']}\n"
+                f"Test Type: {item['Test Type']}\n\n"
+            )
 
         prompt = f"""
-        You are a ranking model for SHL assessment recommendations.
+You are an SHL assessment ranking model. Rank assessments for the job query.
 
-        Query:
-        {query}
+JOB QUERY:
+{query}
 
-        Below is a list of candidate assessments. Rank them from most relevant to least relevant.
+ASSESSMENTS:
+{context}
 
-        {context}
+Return ONLY a comma-separated list of indexes.
+"""
 
-        Return ONLY a list of ranked indexes (like: 3,0,1,2,...)
-        """
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+        request = GenerateContentRequest(
+            model="models/gemini-2.5-flash",
+            contents=[Content(parts=[{"text": prompt}])]
         )
 
-        ranked_order = response.choices[0].message.content.strip()
-        ranked_order = [int(x) for x in ranked_order.split(",")]
+        response = client.generate_content(request)
 
-        reranked = [retrieved_items[i] for i in ranked_order[:top_k]]
-        return reranked
+        ranked_indexes = response.candidates[0].content.parts[0].text.strip()
+        ranked_indexes = [int(x) for x in ranked_indexes.split(",")]
+
+        return [retrieved_items[i] for i in ranked_indexes[:top_k]]
 
     except Exception as e:
-        print("LLM re-ranking failed, using raw results:", e)
+        print("Gemini reranking failed → Using raw top-k. Error:", e)
         return retrieved_items[:top_k]
 
 

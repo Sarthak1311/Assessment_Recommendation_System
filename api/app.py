@@ -24,7 +24,7 @@ class QueryRequest(BaseModel):
 @app.post("/recommend")
 def get_recommendations(data: QueryRequest):
     query = data.query
-    response = recommend(query, use_llm=False)   # set True if you want LLM reranker
+    response = recommend(query, use_llm=True)   # set True if you want LLM reranker
     return response
 
 # Run server
