@@ -59,18 +59,18 @@ def semantic_search(query, top_k=20):
 
 # GEMINI LLM RE-RANKING
 
-from google.ai.generativelanguage_v1beta import GenerativeServiceClient
-from google.ai.generativelanguage_v1beta.types import GenerateContentRequest, Content
-from google.api_core.client_options import ClientOptions
+import google.generativeai as genai
+import os
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
 
 if not API_KEY:
     raise ValueError("GOOGLE_API_KEY not set in environment variables")
 
-client = GenerativeServiceClient(
-    client_options=ClientOptions(api_key=API_KEY)
-)
+genai.configure(api_key=API_KEY)
+
+gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
+
 
 def rerank_with_llm(query, retrieved_items, top_k=10):
     try:
@@ -94,20 +94,16 @@ ASSESSMENTS:
 Return ONLY a comma-separated list of indexes.
 """
 
-        request = GenerateContentRequest(
-            model="models/gemini-2.5-flash",
-            contents=[Content(parts=[{"text": prompt}])]
-        )
-
-        response = client.generate_content(request)
-        ranked_indexes = response.candidates[0].content.parts[0].text.strip()
+        response = gemini_model.generate_content(prompt)
+        ranked_indexes = response.text.strip()
         ranked_indexes = [int(x) for x in ranked_indexes.split(",")]
 
         return [retrieved_items[i] for i in ranked_indexes[:top_k]]
 
     except Exception as e:
-        print(" Gemini reranking failed → Using raw results. Error:", e)
+        print("Gemini reranking failed → Using raw results. Error:", e)
         return retrieved_items[:top_k]
+
 
 
 # OUTPUT FORMATTER
