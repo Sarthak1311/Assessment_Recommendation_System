@@ -7,10 +7,10 @@ from sentence_transformers import SentenceTransformer
 # LOAD FAISS + METADATA + MODEL
 
 print("Loading FAISS index...")
-index = faiss.read_index("shl_faiss.index")
+index = faiss.read_index("api/shl_faiss.index")
 
 print("Loading metadata...")
-with open("shl_metadata.pkl", "rb") as f:
+with open("api/shl_metadata.pkl", "rb") as f:
     meta = pickle.load(f)
 
 df = meta["df"]
