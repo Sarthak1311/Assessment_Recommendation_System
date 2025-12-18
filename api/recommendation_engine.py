@@ -62,18 +62,28 @@ def semantic_search(query, top_k=20):
 import google.generativeai as genai
 import os
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
+_gemini_model = None
 
-if not API_KEY:
-    raise ValueError("GOOGLE_API_KEY not set in environment variables")
+def get_gemini_model():
+    global _gemini_model
 
-genai.configure(api_key=API_KEY)
+    if _gemini_model is None:
+        API_KEY = os.getenv("GOOGLE_API_KEY")
+        if not API_KEY:
+            raise ValueError("GOOGLE_API_KEY not set")
 
-gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
+        genai.configure(api_key=API_KEY)
+        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+
+        print("✅ Gemini model loaded")
+
+    return _gemini_model
 
 
 def rerank_with_llm(query, retrieved_items, top_k=10):
     try:
+        model = get_gemini_model()   # 👈 LAZY LOAD HERE
+
         context = ""
         for i, item in enumerate(retrieved_items):
             context += (
@@ -94,15 +104,16 @@ ASSESSMENTS:
 Return ONLY a comma-separated list of indexes.
 """
 
-        response = gemini_model.generate_content(prompt)
+        response = model.generate_content(prompt)
         ranked_indexes = response.text.strip()
         ranked_indexes = [int(x) for x in ranked_indexes.split(",")]
 
         return [retrieved_items[i] for i in ranked_indexes[:top_k]]
 
     except Exception as e:
-        print("Gemini reranking failed → Using raw results. Error:", e)
+        print(" Gemini reranking failed → Using raw results. Error:", e)
         return retrieved_items[:top_k]
+
 
 
 
