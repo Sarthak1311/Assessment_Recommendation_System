@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sentence-transformers
+faiss-cpu
+pandas
+numpy
+requests
+python-multipart
+openai
+streamlit
