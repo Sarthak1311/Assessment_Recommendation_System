@@ -8,3 +8,4 @@ requests
 python-multipart
 openai
 streamlit
+google-generativeai
