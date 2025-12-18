@@ -5,12 +5,25 @@ from sentence_transformers import SentenceTransformer
 
 
 # LOAD FAISS + METADATA + MODEL
+# to use in loacal 
+# print("Loading FAISS index...")
+# index = faiss.read_index("shl_faiss.index")
 
-print("Loading FAISS index...")
-index = faiss.read_index("shl_faiss.index")
+# print("Loading metadata...")
+# with open("shl_metadata.pkl", "rb") as f:
+#     meta = pickle.load(f)
 
-print("Loading metadata...")
-with open("shl_metadata.pkl", "rb") as f:
+# for using in render 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+FAISS_PATH = os.path.join(BASE_DIR, "shl_faiss.index")
+META_PATH = os.path.join(BASE_DIR, "shl_metadata.pkl")
+
+index = faiss.read_index(FAISS_PATH)
+
+with open(META_PATH, "rb") as f:
     meta = pickle.load(f)
 
 df = meta["df"]
