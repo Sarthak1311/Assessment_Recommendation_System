@@ -1,32 +1,53 @@
+# ===============================
+# recommendation_engine.py
+# ===============================
+
 import os
 import pickle
 import faiss
+import torch
 from sentence_transformers import SentenceTransformer
 
 
-# GLOBAL CACHED OBJECTS (lazy)
+# CPU SAFETY (IMPORTANT FOR RENDER)
+
+torch.set_num_threads(1)
+
+
+# GLOBAL CACHED OBJECTS (LAZY LOADED)
 
 _index = None
 _model = None
 _df = None
+_gemini_model = None
 
 
-# PATHS
+# PATHS (ABSOLUTE, CLOUD-SAFE)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 FAISS_PATH = os.path.join(BASE_DIR, "shl_faiss.index")
 META_PATH = os.path.join(BASE_DIR, "shl_metadata.pkl")
 
 
-# LAZY LOADER
+# SAFETY CHECKS (FAIL FAST, CLEAR ERROR)
+
+if not os.path.exists(FAISS_PATH):
+    raise FileNotFoundError(f"FAISS index not found at {FAISS_PATH}")
+
+if not os.path.exists(META_PATH):
+    raise FileNotFoundError(f"Metadata file not found at {META_PATH}")
+
+
+# LAZY RESOURCE LOADER
 
 def load_resources():
     global _index, _model, _df
 
     if _index is None or _model is None or _df is None:
-        print(" Loading FAISS index & embedding model (lazy)...")
+        print("🚀 Loading FAISS index & embedding model (lazy)...")
 
-        # Load FAISS
+        # Load FAISS index
         _index = faiss.read_index(FAISS_PATH)
 
         # Load metadata
@@ -36,18 +57,22 @@ def load_resources():
         _df = meta["df"]
         model_name = meta["model_name"]
 
-        # Load embedding model (heavy)
+        # Load embedding model (HEAVY)
         _model = SentenceTransformer(model_name)
 
-        print(f" Loaded model: {model_name}")
+        print(f"Loaded embedding model: {model_name}")
 
 
 # SEMANTIC SEARCH
 
 def semantic_search(query, top_k=20):
-    load_resources()   # <-- KEY FIX
+    load_resources()   # ensures non-blocking startup
 
-    query_emb = _model.encode([query], normalize_embeddings=True)
+    query_emb = _model.encode(
+        [query],
+        normalize_embeddings=True
+    )
+
     _, indices = _index.search(query_emb, top_k)
 
     results = []
@@ -57,12 +82,9 @@ def semantic_search(query, top_k=20):
     return results
 
 
-# GEMINI LLM RE-RANKING
+# GEMINI LLM (LAZY LOADED)
 
-import google.generativeai as genai
-import os
-
-_gemini_model = None
+import google.genai as genai
 
 def get_gemini_model():
     global _gemini_model
@@ -70,19 +92,21 @@ def get_gemini_model():
     if _gemini_model is None:
         API_KEY = os.getenv("GOOGLE_API_KEY")
         if not API_KEY:
-            raise ValueError("GOOGLE_API_KEY not set")
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
 
         genai.configure(api_key=API_KEY)
         _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
-        print("✅ Gemini model loaded")
+        print(" Gemini model loaded")
 
     return _gemini_model
 
 
+# LLM RE-RANKING
+
 def rerank_with_llm(query, retrieved_items, top_k=10):
     try:
-        model = get_gemini_model()   # 👈 LAZY LOAD HERE
+        model = get_gemini_model()
 
         context = ""
         for i, item in enumerate(retrieved_items):
@@ -105,16 +129,18 @@ Return ONLY a comma-separated list of indexes.
 """
 
         response = model.generate_content(prompt)
-        ranked_indexes = response.text.strip()
-        ranked_indexes = [int(x) for x in ranked_indexes.split(",")]
+
+        ranked_indexes = [
+            int(x.strip())
+            for x in response.text.strip().split(",")
+            if x.strip().isdigit()
+        ]
 
         return [retrieved_items[i] for i in ranked_indexes[:top_k]]
 
     except Exception as e:
-        print(" Gemini reranking failed → Using raw results. Error:", e)
+        print(" Gemini reranking failed → Using raw results:", e)
         return retrieved_items[:top_k]
-
-
 
 
 # OUTPUT FORMATTER
@@ -142,7 +168,8 @@ def format_output(items):
 
     return {"recommended_assessments": formatted}
 
-# MAIN ENTRY POINT
+
+# MAIN ENTRY POINT (CALLED BY FASTAPI)
 
 def recommend(query, use_llm=True):
     retrieved = semantic_search(query, top_k=20)
