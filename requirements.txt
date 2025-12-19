@@ -6,6 +6,5 @@ pandas
 numpy
 requests
 python-multipart
-openai
 streamlit
-google-generativeai
+google-genai
